@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lockerin-api
+    ports:
+      - "8080:8080"
+    environment:
+      - APP_ENV=development
+      - PORT=8080
+      - SUPABASE_DB_URL=${SUPABASE_DB_URL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - JWT_SECRET=${JWT_SECRET:-super-secret-key-2026}
+      - MIDTRANS_SERVER_KEY=${MIDTRANS_SERVER_KEY}
+      - IOT_DEVICE_SECRET_KEY=${IOT_DEVICE_SECRET_KEY}
+    restart: unless-stopped

@@ -1,0 +1,588 @@
+openapi: 3.0.3
+info:
+  title: Lockerin Backend REST API
+  description: >
+    Official REST API for Lockerin Smart Locker ecosystem.
+    Single backend consumed by Flutter Mobile App, Web Admin Dashboard, and IoT Head Locker.
+  version: 2.0.0
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local Development Server
+  - url: https://api.lockerin.id/api/v1
+    description: Production Server
+
+paths:
+  /auth/register:
+    post:
+      summary: Register new user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 6 }
+                username: { type: string }
+                name: { type: string }
+                phone: { type: string }
+      responses:
+        '201':
+          description: User registered successfully
+        '400':
+          description: Validation error
+        '409':
+          description: User already exists
+
+  /auth/login:
+    post:
+      summary: Login user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email_or_username, password]
+              properties:
+                email_or_username: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Login successful with JWT token
+        '401':
+          description: Invalid credentials
+
+  /me:
+    get:
+      summary: Get current logged-in user profile
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile details
+
+  /locations:
+    get:
+      summary: Get list of locker locations with availability
+      tags: [Locations]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: List of locker stations
+
+  /locations/{id}:
+    get:
+      summary: Get location detail
+      tags: [Locations]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Location details
+
+  /locations/{id}/availability:
+    get:
+      summary: Get real-time slot availability for a location
+      tags: [Locations]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Slot breakdown by size and availability
+
+  /lockers/{id}:
+    get:
+      summary: Get locker hardware details
+      tags: [Lockers]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Locker hardware unit
+
+  /lockers/{id}/slots:
+    get:
+      summary: Get slots for a locker unit
+      tags: [Lockers]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Array of locker slots (A1-E5)
+
+  /rentals/quote:
+    post:
+      summary: Calculate rental price with voucher discount
+      tags: [Rentals]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slot_id, duration_hours]
+              properties:
+                slot_id: { type: string, format: uuid }
+                duration_hours: { type: integer, minimum: 1 }
+                promo_code: { type: string }
+      responses:
+        '200':
+          description: Quote calculation
+
+  /rentals/reserve:
+    post:
+      summary: Reserve a locker slot with TTL (Concurrently protected)
+      tags: [Rentals]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slot_id, duration_hours]
+              properties:
+                slot_id: { type: string, format: uuid }
+                duration_hours: { type: integer, minimum: 1 }
+                promo_code: { type: string }
+      responses:
+        '201':
+          description: Slot successfully reserved
+        '409':
+          description: Slot is already reserved or occupied
+
+  /rentals/{id}/start:
+    post:
+      summary: Start active rental timer after payment
+      tags: [Rentals]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Rental timer started
+
+  /rentals/{id}/open:
+    post:
+      summary: Open locker solenoid from mobile app
+      tags: [Rentals]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                security_pin: { type: string }
+      responses:
+        '200':
+          description: Unlock command dispatched
+
+  /rentals/{id}/close:
+    post:
+      summary: Finish rental and free up the slot
+      tags: [Rentals]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Rental completed
+
+  /rentals/{id}/security-code/verify:
+    post:
+      summary: Verify one-time security PIN (at Head Locker hardware)
+      tags: [Security Code]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [security_pin]
+              properties:
+                security_pin: { type: string }
+      responses:
+        '200':
+          description: PIN valid and unlocked
+        '401':
+          description: Invalid or locked PIN
+
+  /payments:
+    post:
+      summary: Create payment transaction with Midtrans Snap
+      tags: [Payments]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rental_id]
+              properties:
+                rental_id: { type: string, format: uuid }
+                payment_method: { type: string }
+      responses:
+        '201':
+          description: Snap token generated
+
+  /payments/webhook/midtrans:
+    post:
+      summary: Midtrans payment notification webhook
+      tags: [Payments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook acknowledged
+
+  /device/heartbeat:
+    post:
+      summary: IoT Head Locker heartbeat ping
+      tags: [IoT Head Locker]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_id]
+              properties:
+                device_id: { type: string }
+                firmware_version: { type: string }
+      responses:
+        '200':
+          description: Heartbeat recorded
+
+  /device/commands/{id}/ack:
+    post:
+      summary: IoT Head Locker command execution ACK
+      tags: [IoT Head Locker]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [correlation_id, status]
+              properties:
+                correlation_id: { type: string }
+                status: { type: string, enum: [SUCCESS, FAILED] }
+      responses:
+        '200':
+          description: ACK recorded
+
+  /admin/dashboard:
+    get:
+      summary: Get admin dashboard overview stats
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Admin dashboard statistics
+
+  /admin/lockers:
+    get:
+      summary: Get all hardware lockers with telemetry and slot occupancy
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of hardware lockers with stats
+
+  /admin/promos:
+    get:
+      summary: Get all promo codes
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of promo codes
+    post:
+      summary: Create new promo code
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, discount_percent, valid_until]
+              properties:
+                code: { type: string }
+                discount_percent: { type: number }
+                max_discount: { type: number }
+                quota: { type: integer }
+                valid_until: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Promo created
+
+  /admin/promos/{id}/status:
+    patch:
+      summary: Update promo active status
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [is_active]
+              properties:
+                is_active: { type: boolean }
+      responses:
+        '200':
+          description: Promo status updated
+
+  /admin/pricing:
+    get:
+      summary: Get active rental pricing tiers
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Active pricing tiers
+    put:
+      summary: Update rental pricing tiers
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pricing]
+              properties:
+                pricing:
+                  type: array
+                  items:
+                    type: object
+                    required: [slot_size, hourly_rate, deposit_amount]
+                    properties:
+                      slot_size: { type: string, enum: [small, medium, large] }
+                      hourly_rate: { type: number }
+                      deposit_amount: { type: number }
+      responses:
+        '200':
+          description: Pricing updated
+
+  /admin/locations/{id}/status:
+    patch:
+      summary: Toggle location station active/inactive status
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [active, inactive, maintenance] }
+      responses:
+        '200':
+          description: Location status updated
+
+  /admin/device/commands:
+    post:
+      summary: Dispatch remote hardware command override
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_id, command_type]
+              properties:
+                device_id: { type: string }
+                command_type: { type: string, enum: [SOLENOID_UNLOCK, REBOOT, SYNC_STATUS] }
+                payload: { type: object }
+      responses:
+        '200':
+          description: Command dispatched
+
+  /admin/users:
+    get:
+      summary: Get list of registered users
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: List of users
+
+  /admin/users/{id}:
+    get:
+      summary: Get user detail with rentals and payments history
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: User detail with history
+
+  /admin/users/{id}/status:
+    patch:
+      summary: Update user account status
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [active, suspended] }
+      responses:
+        '200':
+          description: User status updated
+
+  /admin/transactions:
+    get:
+      summary: Get all payment transactions with traceability details
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: List of transactions with full relations and audit events
+
+  /admin/transactions/{id}:
+    get:
+      summary: Get payment transaction detail with traceability relations
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Detailed transaction traceability
+
+  /admin/audit-logs:
+    get:
+      summary: Get security audit trail
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Audit logs list
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
