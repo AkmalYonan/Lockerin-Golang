@@ -32,41 +32,38 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func resolveAndCleanRequest(r *http.Request) {
+	var targetPath string
+
 	// 1. Check custom rewrite query param passed by vercel.json
 	q := r.URL.Query()
-	if targetPath := q.Get("__path"); targetPath != "" {
-		if !strings.HasPrefix(targetPath, "/") {
-			targetPath = "/" + targetPath
-		}
-		r.URL.Path = targetPath
+	if p := q.Get("__path"); p != "" {
+		targetPath = p
 		q.Del("__path")
 		r.URL.RawQuery = q.Encode()
-		return
-	}
-
-	// 2. Check x-matched-path header (from Vercel)
-	if matchedPath := r.Header.Get("x-matched-path"); matchedPath != "" && matchedPath != "/api/index" && matchedPath != "/api" && matchedPath != "/api/" {
-		r.URL.Path = matchedPath
-		return
-	}
-
-	// 3. Check x-now-route-matches (format: 1=health or 1=%2Fhealth)
-	if matches := r.Header.Get("x-now-route-matches"); matches != "" {
+	} else if matchedPath := r.Header.Get("x-matched-path"); matchedPath != "" && matchedPath != "/api/index" && matchedPath != "/api" && matchedPath != "/api/" {
+		targetPath = matchedPath
+	} else if matches := r.Header.Get("x-now-route-matches"); matches != "" {
 		if vals, err := url.ParseQuery(matches); err == nil {
 			if matched := vals.Get("1"); matched != "" {
-				if !strings.HasPrefix(matched, "/") {
-					matched = "/" + matched
-				}
-				r.URL.Path = matched
-				return
+				targetPath = matched
 			}
 		}
+	} else if r.URL.Path == "/api/index" || r.URL.Path == "/api" {
+		targetPath = "/"
+	} else if strings.HasPrefix(r.URL.Path, "/api/index/") {
+		targetPath = strings.TrimPrefix(r.URL.Path, "/api/index")
+	} else {
+		targetPath = r.URL.Path
 	}
 
-	// 4. Fallback if request reached handler as /api/index or /api
-	if r.URL.Path == "/api/index" || r.URL.Path == "/api" {
-		r.URL.Path = "/"
-	} else if strings.HasPrefix(r.URL.Path, "/api/index/") {
-		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/api/index")
+	if targetPath == "" {
+		targetPath = "/"
 	}
+	if !strings.HasPrefix(targetPath, "/") {
+		targetPath = "/" + targetPath
+	}
+
+	r.URL.Path = targetPath
+	r.URL.RawPath = "" // Explicitly clear RawPath so Chi router strictly routes against targetPath
+	r.RequestURI = targetPath
 }

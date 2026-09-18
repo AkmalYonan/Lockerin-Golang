@@ -55,6 +55,16 @@ func SetupRouter(cfg *RouterConfig) *chi.Mux {
 	authLimiter := middleware.NewRateLimiter(20, 1*time.Minute)
 	pinLimiter := middleware.NewRateLimiter(10, 1*time.Minute)
 
+	// Custom JSON 404 and 405 handlers
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		reqID := middleware.GetRequestID(r.Context())
+		domain.WriteError(w, http.StatusNotFound, "NOT_FOUND", "Endpoint not found: "+r.Method+" "+r.URL.Path, nil, reqID)
+	})
+	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
+		reqID := middleware.GetRequestID(r.Context())
+		domain.WriteError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "Method not allowed for "+r.URL.Path, nil, reqID)
+	})
+
 	// Root welcome / status check
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		reqID := middleware.GetRequestID(r.Context())
