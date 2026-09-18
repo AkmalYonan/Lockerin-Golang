@@ -34,26 +34,72 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 func resolveAndCleanRequest(r *http.Request) {
 	var targetPath string
 
-	// 1. Check custom rewrite query param passed by vercel.json
+	extractFromStr := func(raw string) string {
+		if raw == "" {
+			return ""
+		}
+		if u, err := url.Parse(raw); err == nil {
+			if p := u.Query().Get("__path"); p != "" {
+				return p
+			}
+			if u.Path != "" && u.Path != "/api/index" && u.Path != "/api" && u.Path != "/api/" {
+				return u.Path
+			}
+		}
+		return ""
+	}
+
+	// 1. Check direct query param on r.URL
 	q := r.URL.Query()
 	if p := q.Get("__path"); p != "" {
 		targetPath = p
 		q.Del("__path")
 		r.URL.RawQuery = q.Encode()
-	} else if matchedPath := r.Header.Get("x-matched-path"); matchedPath != "" && matchedPath != "/api/index" && matchedPath != "/api" && matchedPath != "/api/" {
-		targetPath = matchedPath
-	} else if matches := r.Header.Get("x-now-route-matches"); matches != "" {
-		if vals, err := url.ParseQuery(matches); err == nil {
-			if matched := vals.Get("1"); matched != "" {
-				targetPath = matched
+	}
+
+	// 2. Check x-matched-path header (e.g. /api/index?__path=/health or /health)
+	if targetPath == "" {
+		targetPath = extractFromStr(r.Header.Get("x-matched-path"))
+	}
+
+	// 3. Check x-now-route-matches header (e.g. 1=health or 1=%2Fhealth)
+	if targetPath == "" {
+		if matches := r.Header.Get("x-now-route-matches"); matches != "" {
+			if vals, err := url.ParseQuery(matches); err == nil {
+				if matched := vals.Get("1"); matched != "" {
+					targetPath = matched
+				}
 			}
 		}
-	} else if r.URL.Path == "/api/index" || r.URL.Path == "/api" {
-		targetPath = "/"
-	} else if strings.HasPrefix(r.URL.Path, "/api/index/") {
-		targetPath = strings.TrimPrefix(r.URL.Path, "/api/index")
-	} else {
+	}
+
+	// 4. Check additional Vercel routing headers
+	if targetPath == "" {
+		targetPath = extractFromStr(r.Header.Get("x-invoke-path"))
+	}
+	if targetPath == "" {
+		targetPath = extractFromStr(r.Header.Get("x-forwarded-url"))
+	}
+	if targetPath == "" {
+		targetPath = extractFromStr(r.Header.Get("x-real-url"))
+	}
+
+	// 5. Fallback from r.URL.Path
+	if targetPath == "" {
 		targetPath = r.URL.Path
+	}
+
+	// Strip query string if embedded in targetPath
+	if strings.Contains(targetPath, "?") {
+		parts := strings.SplitN(targetPath, "?", 2)
+		targetPath = parts[0]
+	}
+
+	// Strip /api/index prefix if still present
+	if targetPath == "/api/index" || targetPath == "/api" || targetPath == "/api/" {
+		targetPath = "/"
+	} else if strings.HasPrefix(targetPath, "/api/index/") {
+		targetPath = strings.TrimPrefix(targetPath, "/api/index")
 	}
 
 	if targetPath == "" {
@@ -64,6 +110,6 @@ func resolveAndCleanRequest(r *http.Request) {
 	}
 
 	r.URL.Path = targetPath
-	r.URL.RawPath = "" // Explicitly clear RawPath so Chi router strictly routes against targetPath
+	r.URL.RawPath = "" // Explicitly clear RawPath so Chi router strictly uses targetPath
 	r.RequestURI = targetPath
 }

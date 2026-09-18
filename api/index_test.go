@@ -29,12 +29,36 @@ func TestResolveAndCleanRequest(t *testing.T) {
 			expectedPath: "/",
 		},
 		{
+			name: "Vercel header x-matched-path with __path query parameter",
+			url:  "/api/index",
+			headers: map[string]string{
+				"x-matched-path": "/api/index?__path=/health",
+			},
+			expectedPath: "/health",
+		},
+		{
 			name: "Vercel header x-matched-path=/swagger",
 			url:  "/api/index",
 			headers: map[string]string{
 				"x-matched-path": "/swagger",
 			},
 			expectedPath: "/swagger",
+		},
+		{
+			name: "Vercel header x-now-route-matches=1%3Dhealth",
+			url:  "/api/index",
+			headers: map[string]string{
+				"x-now-route-matches": "1=health",
+			},
+			expectedPath: "/health",
+		},
+		{
+			name: "Vercel header x-invoke-path=/api/v1/locations",
+			url:  "/api/index",
+			headers: map[string]string{
+				"x-invoke-path": "/api/v1/locations",
+			},
+			expectedPath: "/api/v1/locations",
 		},
 		{
 			name:         "Fallback /api/index to /",
@@ -67,6 +91,18 @@ func TestResolveAndCleanRequest(t *testing.T) {
 
 func TestHandlerHealthIntegration(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/index?__path=/health", nil)
+	rr := httptest.NewRecorder()
+
+	Handler(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestHandlerWithVercelHeaderIntegration(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/index", nil)
+	req.Header.Set("x-matched-path", "/api/index?__path=/health")
 	rr := httptest.NewRecorder()
 
 	Handler(rr, req)
