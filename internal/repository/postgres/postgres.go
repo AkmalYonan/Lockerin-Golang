@@ -18,7 +18,7 @@ func NewPostgresDB(dbURL string) (*DB, error) {
 		return nil, fmt.Errorf("database URL is empty")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	config, err := pgxpool.ParseConfig(dbURL)

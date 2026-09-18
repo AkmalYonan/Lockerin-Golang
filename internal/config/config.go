@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -36,10 +37,15 @@ func LoadConfig() *Config {
 	pinExpiry, _ := strconv.Atoi(getEnv("PIN_EXPIRY_MINUTES", "1440")) // 24 hours default
 	midtransProd, _ := strconv.ParseBool(getEnv("MIDTRANS_IS_PRODUCTION", "false"))
 
+	rawSupabaseURL := getEnv("SUPABASE_URL", "https://xyzcompany.supabase.co")
+	rawSupabaseURL = strings.TrimRight(rawSupabaseURL, "/")
+	rawSupabaseURL = strings.TrimSuffix(rawSupabaseURL, "/rest/v1")
+	rawSupabaseURL = strings.TrimRight(rawSupabaseURL, "/")
+
 	return &Config{
 		AppEnv:               getEnv("APP_ENV", "development"),
 		Port:                 getEnv("PORT", "8080"),
-		SupabaseURL:          getEnv("SUPABASE_URL", "https://xyzcompany.supabase.co"),
+		SupabaseURL:          rawSupabaseURL,
 		SupabaseAnonKey:      getEnv("SUPABASE_ANON_KEY", ""),
 		SupabaseServiceKey:   getEnv("SUPABASE_SERVICE_ROLE_KEY", ""),
 		SupabaseDBURL:        getEnv("SUPABASE_DB_URL", ""),

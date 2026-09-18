@@ -55,6 +55,19 @@ func SetupRouter(cfg *RouterConfig) *chi.Mux {
 	authLimiter := middleware.NewRateLimiter(20, 1*time.Minute)
 	pinLimiter := middleware.NewRateLimiter(10, 1*time.Minute)
 
+	// Root welcome / status check
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		reqID := middleware.GetRequestID(r.Context())
+		domain.WriteSuccess(w, http.StatusOK, "Lockerin Modular Monolith Go API is running", map[string]string{
+			"service": "Lockerin Golang API",
+			"status":  "healthy",
+			"docs":    "/swagger",
+			"health":  "/health",
+			"api_v1":  "/api/v1",
+			"version": "2.0.0",
+		}, reqID)
+	})
+
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		reqID := middleware.GetRequestID(r.Context())

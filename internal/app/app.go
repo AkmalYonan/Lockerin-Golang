@@ -48,25 +48,41 @@ func NewApp() (*App, func(), error) {
 		pgDB, err := postgres.NewPostgresDB(cfg.SupabaseDBURL)
 		if err != nil {
 			log.Printf("[Database ERROR] Failed to connect to Supabase PostgreSQL: %v", err)
-			return nil, cleanupFunc, err
-		}
-		cleanupFunc = func() {
-			pgDB.Close()
-		}
+			log.Println("[Database Fallback] Running with In-Memory Repository fallback to ensure high availability.")
+			memStore := inmemory.NewInMemoryStore()
+			repos := inmemory.NewRepositories(memStore)
 
-		profRepo = postgres.NewProfileRepo(pgDB)
-		locRepo = postgres.NewLocationRepo(pgDB)
-		lockerRepo = postgres.NewLockerRepo(pgDB)
-		slotRepo = postgres.NewSlotRepo(pgDB)
-		rentRepo = postgres.NewRentalRepo(pgDB)
-		secRepo = postgres.NewSecurityCodeRepo(pgDB)
-		payRepo = postgres.NewPaymentRepo(pgDB)
-		devRepo = postgres.NewDeviceRepo(pgDB)
-		notifRepo = postgres.NewNotificationRepo(pgDB)
-		promoRepo = postgres.NewPromoRepo(pgDB)
-		auditRepo = postgres.NewAuditRepo(pgDB)
-		pricingRepo = postgres.NewPricingRepo(pgDB)
-		log.Println("[Database] Using Supabase PostgreSQL connection pool.")
+			profRepo = repos.Profiles
+			locRepo = repos.Locations
+			lockerRepo = repos.Lockers
+			slotRepo = repos.Slots
+			rentRepo = repos.Rentals
+			secRepo = repos.SecurityCodes
+			payRepo = repos.Payments
+			devRepo = repos.Devices
+			notifRepo = repos.Notifications
+			promoRepo = repos.Promos
+			auditRepo = repos.Audit
+			pricingRepo = repos.Pricing
+		} else {
+			cleanupFunc = func() {
+				pgDB.Close()
+			}
+
+			profRepo = postgres.NewProfileRepo(pgDB)
+			locRepo = postgres.NewLocationRepo(pgDB)
+			lockerRepo = postgres.NewLockerRepo(pgDB)
+			slotRepo = postgres.NewSlotRepo(pgDB)
+			rentRepo = postgres.NewRentalRepo(pgDB)
+			secRepo = postgres.NewSecurityCodeRepo(pgDB)
+			payRepo = postgres.NewPaymentRepo(pgDB)
+			devRepo = postgres.NewDeviceRepo(pgDB)
+			notifRepo = postgres.NewNotificationRepo(pgDB)
+			promoRepo = postgres.NewPromoRepo(pgDB)
+			auditRepo = postgres.NewAuditRepo(pgDB)
+			pricingRepo = postgres.NewPricingRepo(pgDB)
+			log.Println("[Database] Using Supabase PostgreSQL connection pool.")
+		}
 	} else {
 		log.Println("[Database] SUPABASE_DB_URL not set. Running with In-Memory Repository (Demo/Test Mode).")
 		memStore := inmemory.NewInMemoryStore()
