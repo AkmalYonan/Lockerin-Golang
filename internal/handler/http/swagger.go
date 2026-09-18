@@ -121,6 +121,13 @@ const swaggerHTML = `<!DOCTYPE html>
   <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js" charset="UTF-8"></script>
   <script>
     window.onload = function() {
+      // Dynamically resolve the active server base URL from the current browser origin.
+      // This ensures "Try it out" works correctly in any environment:
+      // - http://localhost:8080 during local development
+      // - https://lockerin-golang.vercel.app on Vercel
+      // - any custom domain in the future
+      var activeBaseURL = window.location.origin + "/api/v1";
+
       window.ui = SwaggerUIBundle({
         url: "/docs/openapi.yaml",
         dom_id: '#swagger-ui',
@@ -139,10 +146,45 @@ const swaggerHTML = `<!DOCTYPE html>
         tryItOutEnabled: true,
         docExpansion: "list",
         defaultModelsExpandDepth: 1,
-        defaultModelExpandDepth: 1
+        defaultModelExpandDepth: 1,
+        // Override server URL to always use the current domain
+        requestInterceptor: function(request) {
+          // Replace any hardcoded server URL (localhost or other) with the active domain
+          if (request.url) {
+            request.url = request.url.replace(
+              /^https?:\/\/[^\/]+\/api\/v1/,
+              activeBaseURL
+            );
+          }
+          return request;
+        },
+        // Inject current domain as the first/default server option
+        onComplete: function() {
+          // Update the server selector dropdown to show the active URL
+          var serverSelect = document.querySelector('.servers select');
+          if (serverSelect) {
+            // Add active domain as first option if not already present
+            var alreadyPresent = false;
+            for (var i = 0; i < serverSelect.options.length; i++) {
+              if (serverSelect.options[i].value === activeBaseURL) {
+                alreadyPresent = true;
+                serverSelect.selectedIndex = i;
+                break;
+              }
+            }
+            if (!alreadyPresent) {
+              var opt = document.createElement('option');
+              opt.value = activeBaseURL;
+              opt.text = activeBaseURL + " (Current)";
+              serverSelect.insertBefore(opt, serverSelect.firstChild);
+              serverSelect.selectedIndex = 0;
+            }
+          }
+        }
       });
     };
   </script>
 </body>
 </html>
 `
+
