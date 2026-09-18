@@ -41,13 +41,13 @@ func SetupRouter(cfg *RouterConfig) *chi.Mux {
 	r.Use(chimiddleware.RealIP)
 	r.Use(chimiddleware.Timeout(30 * time.Second))
 
-	// CORS Setup for Flutter & Web Admin
+	// CORS Setup for Flutter & Web Admin (supports localhost, vite, laravel, and production domains)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-ID", "X-Device-Secret"},
+		AllowedOrigins:   []string{"https://*", "http://*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-XSRF-Token", "X-Requested-With", "X-Request-ID", "X-Device-Secret", "Origin"},
 		ExposedHeaders:   []string{"Link", "X-Request-ID"},
-		AllowCredentials: false,
+		AllowCredentials: true,
 		MaxAge:           300,
 	}))
 
