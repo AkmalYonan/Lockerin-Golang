@@ -20,6 +20,7 @@ lockerin-backend.exe
 .idea/
 .vscode/
 .gemini/
+.vercel/
 *.swp
 *.swo
 *~

@@ -26,10 +26,10 @@ func NewPostgresDB(dbURL string) (*DB, error) {
 		return nil, fmt.Errorf("unable to parse database config: %w", err)
 	}
 
-	config.MaxConns = 25
-	config.MinConns = 5
-	config.MaxConnLifetime = 1 * time.Hour
-	config.MaxConnIdleTime = 30 * time.Minute
+	config.MaxConns = 10
+	config.MinConns = 0
+	config.MaxConnLifetime = 30 * time.Minute
+	config.MaxConnIdleTime = 5 * time.Minute
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
